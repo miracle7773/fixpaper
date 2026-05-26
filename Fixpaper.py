@@ -100,6 +100,40 @@ def parse_final_output(response: str) -> dict[str, str]:
 
 # ── API callers ───────────────────────────────────────────────────────────────
 
+def call_claude(prompt: str, client: anthropic.Anthropic) -> str:
+    response = client.messages.create(
+        model="claude-sonnet-4-6",
+        max_tokens=2048,
+        messages=[{"role": "user", "content": prompt}],
+    )
+    return response.content[0].text
+
+
+def call_gpt(prompt: str, client: openai.OpenAI) -> str:
+    response = client.chat.completions.create(
+        model="gpt-4o",
+        messages=[{"role": "user", "content": prompt}],
+        max_tokens=2048,
+    )
+    return response.choices[0].message.content
+
+
 # ── Debate orchestrator ───────────────────────────────────────────────────────
+
+def run_debate(text: str, anthropic_key: str, openai_key: str) -> dict:
+    """Run 3-round Claude↔GPT debate and return all round outputs."""
+    claude_client = anthropic.Anthropic(api_key=anthropic_key)
+    gpt_client = openai.OpenAI(api_key=openai_key)
+
+    round1 = call_claude(build_round1_prompt(text), claude_client)
+    round2 = call_gpt(build_round2_prompt(text, round1), gpt_client)
+    round3_raw = call_claude(build_round3_prompt(text, round1, round2), claude_client)
+    round3_parsed = parse_final_output(round3_raw)
+
+    return {
+        "round1": round1,
+        "round2": round2,
+        "round3": {"raw": round3_raw, **round3_parsed},
+    }
 
 # ── Streamlit UI ──────────────────────────────────────────────────────────────
