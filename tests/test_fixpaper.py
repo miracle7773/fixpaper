@@ -151,7 +151,11 @@ def test_call_claude_returns_text():
     mock_client.messages.create.return_value.content = [MagicMock(text="Claude 응답")]
     result = call_claude("프롬프트", mock_client)
     assert result == "Claude 응답"
-    mock_client.messages.create.assert_called_once()
+    mock_client.messages.create.assert_called_once_with(
+        model="claude-sonnet-4-6",
+        max_tokens=2048,
+        messages=[{"role": "user", "content": "프롬프트"}],
+    )
 
 
 def test_call_gpt_returns_text():
@@ -161,7 +165,11 @@ def test_call_gpt_returns_text():
     ]
     result = call_gpt("프롬프트", mock_client)
     assert result == "GPT 응답"
-    mock_client.chat.completions.create.assert_called_once()
+    mock_client.chat.completions.create.assert_called_once_with(
+        model="gpt-4o",
+        messages=[{"role": "user", "content": "프롬프트"}],
+        max_tokens=2048,
+    )
 
 
 def test_run_debate_returns_all_rounds():
