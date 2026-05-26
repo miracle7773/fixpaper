@@ -77,3 +77,28 @@ def test_parse_docx_skips_whitespace_only_paragraphs():
         result = parse_docx(b"fake docx bytes")
 
     assert result == "Real content"
+
+
+from Fixpaper import build_round1_prompt, build_round2_prompt, build_round3_prompt
+
+
+def test_round1_prompt_contains_text():
+    prompt = build_round1_prompt("내 글입니다.")
+    assert "내 글입니다." in prompt
+    assert "언어" in prompt  # language instruction present
+
+
+def test_round2_prompt_contains_text_and_round1():
+    prompt = build_round2_prompt("원본", "Claude 제안")
+    assert "원본" in prompt
+    assert "Claude 제안" in prompt
+    assert "언어" in prompt
+
+
+def test_round3_prompt_contains_all_three():
+    prompt = build_round3_prompt("원본", "Claude 제안", "GPT 반박")
+    assert "원본" in prompt
+    assert "Claude 제안" in prompt
+    assert "GPT 반박" in prompt
+    assert "변경 사항 요약" in prompt
+    assert "최종 수정본" in prompt
