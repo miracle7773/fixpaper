@@ -200,11 +200,7 @@ def call_claude(prompt: str, client: anthropic.Anthropic, max_tokens: int = 2048
     return response.content[0].text
 
 
-def call_claude_chat(
-    messages: list[dict],
-    system: str,
-    client: anthropic.Anthropic,
-) -> str:
+def call_claude_chat(messages: list[dict], system: str, client: anthropic.Anthropic) -> str:
     response = client.messages.create(
         model="claude-sonnet-4-6",
         max_tokens=4096,
@@ -286,103 +282,105 @@ def main() -> None:
             st.session_state.current_text = input_text
             st.rerun()
 
-    # ── 규칙 설정 채팅 (글 로드 후, 토론 전) ─────────────────────────────
+    # ── 규칙 설정 섹션 (글 로드 후, 토론 전) ─────────────────────────────
     if st.session_state.original_text and not st.session_state.debate_done:
         st.divider()
-        st.subheader("📋 교정 규칙 설정")
-        st.caption("교정 시 지켜야 할 규칙을 알려주세요. 규칙 없이 바로 교정을 시작해도 됩니다.")
+        st.subheader("📋 교정 규칙 설정 (선택사항)")
+        st.caption("교정 시 지켜야 할 규칙을 아래 채팅으로 알려주세요. 규칙 없이 바로 교정을 시작해도 됩니다.")
         st.caption("예: '구조나 어투는 유지해' / '문법만 고쳐줘' / '격식체로 써줘'")
 
+        # 버튼을 채팅 입력보다 위에 배치 (chat_input은 하단 고정이라 버튼이 가려지는 것 방지)
+        col1, col2 = st.columns(2)
+        with col1:
+            start_chat_only = st.button("💬 교정 없이 채팅만", use_container_width=True)
+        with col2:
+            start_debate = st.button("🚀 교정 시작", use_container_width=True)
+
+        # 규칙 채팅 기록 표시
         for msg in st.session_state.rules_messages:
             with st.chat_message(msg["role"]):
                 st.markdown(msg["content"])
 
-        if rule_input := st.chat_input("규칙 입력...", key="rules_input"):
+        # 채팅 입력
+        rule_input = st.chat_input("규칙 입력...", key="rules_input")
+
+        if rule_input:
             if not anthropic_key:
                 st.error("Anthropic API 키가 설정되지 않았습니다.")
                 return
-
             st.session_state.rules_messages.append({"role": "user", "content": rule_input})
-            with st.chat_message("user"):
-                st.markdown(rule_input)
-
-            with st.chat_message("assistant"):
-                with st.spinner("..."):
-                    claude_client = anthropic.Anthropic(api_key=anthropic_key)
-                    reply = call_claude_chat(
-                        messages=st.session_state.rules_messages,
-                        system=build_rules_system(st.session_state.original_text),
-                        client=claude_client,
-                    )
-                st.markdown(reply)
-
+            claude_client = anthropic.Anthropic(api_key=anthropic_key)
+            with st.spinner("..."):
+                reply = call_claude_chat(
+                    messages=st.session_state.rules_messages,
+                    system=build_rules_system(st.session_state.original_text),
+                    client=claude_client,
+                )
             st.session_state.rules_messages.append({"role": "assistant", "content": reply})
+            st.rerun()
 
-        st.divider()
-        col1, col2 = st.columns(2)
-        with col1:
-            if st.button("💬 교정 없이 채팅만", use_container_width=True):
-                st.session_state.debate_done = False
-                st.rerun()
-        with col2:
-            if st.button("🚀 교정 시작", use_container_width=True):
-                if not anthropic_key:
-                    st.error("Anthropic API 키가 설정되지 않았습니다.")
-                    return
-                if not openai_key:
-                    st.error("OpenAI API 키가 설정되지 않았습니다.")
-                    return
+        if start_chat_only:
+            st.session_state.debate_done = False
+            st.rerun()
 
-                rules = extract_rules(st.session_state.rules_messages)
-                input_text = st.session_state.original_text
+        if start_debate:
+            if not anthropic_key:
+                st.error("Anthropic API 키가 설정되지 않았습니다.")
+                return
+            if not openai_key:
+                st.error("OpenAI API 키가 설정되지 않았습니다.")
+                return
 
-                try:
-                    claude_client = anthropic.Anthropic(api_key=anthropic_key)
-                    gpt_client = openai.OpenAI(api_key=openai_key)
+            rules = extract_rules(st.session_state.rules_messages)
+            input_text = st.session_state.original_text
 
-                    with st.spinner("Round 1 진행 중 — Claude 분석..."):
-                        round1 = call_claude(build_round1_prompt(input_text, rules), claude_client)
+            try:
+                claude_client = anthropic.Anthropic(api_key=anthropic_key)
+                gpt_client = openai.OpenAI(api_key=openai_key)
 
-                    with st.spinner("Round 2 진행 중 — GPT 반박/보완..."):
-                        round2 = call_gpt(build_round2_prompt(input_text, round1, rules), gpt_client)
+                with st.spinner("Round 1 진행 중 — Claude 분석..."):
+                    round1 = call_claude(build_round1_prompt(input_text, rules), claude_client)
 
-                    with st.spinner("Round 3 진행 중 — Claude 중간 수정안..."):
-                        round3 = call_claude(
-                            build_round3_prompt(input_text, round1, round2, rules),
-                            claude_client,
-                            max_tokens=4096,
-                        )
+                with st.spinner("Round 2 진행 중 — GPT 반박/보완..."):
+                    round2 = call_gpt(build_round2_prompt(input_text, round1, rules), gpt_client)
 
-                    with st.spinner("Round 4 진행 중 — GPT 최종 검토..."):
-                        round4 = call_gpt(
-                            build_round4_prompt(input_text, round1, round2, round3, rules),
-                            gpt_client,
-                        )
+                with st.spinner("Round 3 진행 중 — Claude 중간 수정안..."):
+                    round3 = call_claude(
+                        build_round3_prompt(input_text, round1, round2, rules),
+                        claude_client,
+                        max_tokens=4096,
+                    )
 
-                    with st.spinner("Round 5 진행 중 — Claude 최종 통합..."):
-                        round5_raw = call_claude(
-                            build_round5_prompt(input_text, round1, round2, round3, round4, rules),
-                            claude_client,
-                            max_tokens=4096,
-                        )
-                        round5 = parse_final_output(round5_raw)
+                with st.spinner("Round 4 진행 중 — GPT 최종 검토..."):
+                    round4 = call_gpt(
+                        build_round4_prompt(input_text, round1, round2, round3, rules),
+                        gpt_client,
+                    )
 
-                except Exception as e:
-                    st.error(f"오류가 발생했습니다: {e}")
-                    return
+                with st.spinner("Round 5 진행 중 — Claude 최종 통합..."):
+                    round5_raw = call_claude(
+                        build_round5_prompt(input_text, round1, round2, round3, round4, rules),
+                        claude_client,
+                        max_tokens=4096,
+                    )
+                    round5 = parse_final_output(round5_raw)
 
-                st.session_state.current_text = round5["final_text"] or round5_raw
-                st.session_state.debate_data = {
-                    "round1": round1,
-                    "round2": round2,
-                    "round3": round3,
-                    "round4": round4,
-                    "round5_raw": round5_raw,
-                    "round5": round5,
-                    "rules": rules,
-                }
-                st.session_state.debate_done = True
-                st.rerun()
+            except Exception as e:
+                st.error(f"오류가 발생했습니다: {e}")
+                return
+
+            st.session_state.current_text = round5["final_text"] or round5_raw
+            st.session_state.debate_data = {
+                "round1": round1,
+                "round2": round2,
+                "round3": round3,
+                "round4": round4,
+                "round5_raw": round5_raw,
+                "round5": round5,
+                "rules": rules,
+            }
+            st.session_state.debate_done = True
+            st.rerun()
 
     # ── 교정 결과 (토론 완료 시) ──────────────────────────────────────────
     if st.session_state.debate_done:
@@ -418,8 +416,8 @@ def main() -> None:
         st.subheader("✅ 최종 수정본")
         st.code(st.session_state.current_text, language=None)
 
-    # ── 수정 요청 채팅 (글 로드 + 토론 완료 후) ──────────────────────────
-    if st.session_state.original_text and st.session_state.debate_done:
+    # ── 추가 수정 채팅 (토론 완료 후) ────────────────────────────────────
+    if st.session_state.debate_done:
         st.divider()
         st.subheader("💬 추가 수정 요청")
         st.caption("수정본을 기반으로 원하는 부분을 자유롭게 요청하세요.")
@@ -428,29 +426,24 @@ def main() -> None:
             with st.chat_message(msg["role"]):
                 st.markdown(msg["content"])
 
-        if user_input := st.chat_input("예: 3문단을 더 formal하게 해줘 / 결론만 다시 써줘", key="chat_input"):
+        user_input = st.chat_input("예: 3문단을 더 formal하게 해줘 / 결론만 다시 써줘", key="chat_input")
+        if user_input:
             if not anthropic_key:
                 st.error("Anthropic API 키가 설정되지 않았습니다.")
                 return
-
             st.session_state.chat_messages.append({"role": "user", "content": user_input})
-            with st.chat_message("user"):
-                st.markdown(user_input)
-
-            with st.chat_message("assistant"):
-                with st.spinner("..."):
-                    claude_client = anthropic.Anthropic(api_key=anthropic_key)
-                    reply = call_claude_chat(
-                        messages=st.session_state.chat_messages,
-                        system=build_chat_system(
-                            st.session_state.original_text,
-                            st.session_state.current_text,
-                        ),
-                        client=claude_client,
-                    )
-                st.markdown(reply)
-
+            claude_client = anthropic.Anthropic(api_key=anthropic_key)
+            with st.spinner("..."):
+                reply = call_claude_chat(
+                    messages=st.session_state.chat_messages,
+                    system=build_chat_system(
+                        st.session_state.original_text,
+                        st.session_state.current_text,
+                    ),
+                    client=claude_client,
+                )
             st.session_state.chat_messages.append({"role": "assistant", "content": reply})
+            st.rerun()
 
 
 if __name__ == "__main__":
