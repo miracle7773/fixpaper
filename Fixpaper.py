@@ -137,3 +137,95 @@ def run_debate(text: str, anthropic_key: str, openai_key: str) -> dict:
     }
 
 # ── Streamlit UI ──────────────────────────────────────────────────────────────
+
+def main() -> None:
+    st.set_page_config(page_title="Fixpaper — Claude × GPT 글 교정", page_icon="✏️", layout="wide")
+    st.title("✏️ Fixpaper — Claude × GPT 글 교정")
+
+    # ── Sidebar: API keys ──────────────────────────────────────────────────
+    with st.sidebar:
+        st.header("🔑 API 키 설정")
+        anthropic_key = st.text_input(
+            "Anthropic API Key",
+            value=os.getenv("ANTHROPIC_API_KEY", ""),
+            type="password",
+        )
+        openai_key = st.text_input(
+            "OpenAI API Key",
+            value=os.getenv("OPENAI_API_KEY", ""),
+            type="password",
+        )
+
+    # ── Input ──────────────────────────────────────────────────────────────
+    st.subheader("📄 글 입력")
+    uploaded_file = st.file_uploader("파일 업로드 (PDF 또는 DOCX)", type=["pdf", "docx"])
+
+    text_input = st.text_area("또는 직접 입력", height=200, placeholder="여기에 글을 붙여넣으세요...")
+
+    # Resolve input text
+    input_text: Optional[str] = None
+    if uploaded_file is not None:
+        file_bytes = uploaded_file.read()
+        if uploaded_file.name.endswith(".pdf"):
+            input_text = parse_pdf(file_bytes)
+        else:
+            input_text = parse_docx(file_bytes)
+        st.success(f"파일 로드 완료: {len(input_text)}자")
+    elif text_input.strip():
+        input_text = text_input.strip()
+
+    # ── Run ────────────────────────────────────────────────────────────────
+    if st.button("🚀 교정 시작", disabled=input_text is None):
+        if not anthropic_key:
+            st.error("Anthropic API 키를 입력해주세요.")
+            return
+        if not openai_key:
+            st.error("OpenAI API 키를 입력해주세요.")
+            return
+
+        try:
+            claude_client = anthropic.Anthropic(api_key=anthropic_key)
+            gpt_client = openai.OpenAI(api_key=openai_key)
+
+            with st.spinner("Round 1 진행 중 — Claude 분석..."):
+                round1 = call_claude(build_round1_prompt(input_text), claude_client)
+
+            with st.spinner("Round 2 진행 중 — GPT 반박/보완..."):
+                round2 = call_gpt(build_round2_prompt(input_text, round1), gpt_client)
+
+            with st.spinner("Round 3 진행 중 — Claude 최종 통합..."):
+                round3_raw = call_claude(build_round3_prompt(input_text, round1, round2), claude_client)
+                round3 = parse_final_output(round3_raw)
+
+        except Exception as e:
+            st.error(f"오류가 발생했습니다: {e}")
+            return
+
+        # ── Results ────────────────────────────────────────────────────────
+        st.divider()
+
+        with st.expander("💬 토론 과정 보기"):
+            st.markdown("**Round 1 — Claude 분석**")
+            st.markdown(round1)
+            st.markdown("---")
+            st.markdown("**Round 2 — GPT 반박/보완**")
+            st.markdown(round2)
+            st.markdown("---")
+            st.markdown("**Round 3 — Claude 통합 (원문)**")
+            st.markdown(round3_raw)
+
+        st.subheader("📋 변경 사항 요약")
+        if round3["summary"]:
+            st.markdown(round3["summary"])
+        else:
+            st.warning("변경 사항 요약을 파싱하지 못했습니다. 토론 과정 > Round 3 원문을 참고하세요.")
+
+        st.subheader("✅ 최종 수정본")
+        if round3["final_text"]:
+            st.code(round3["final_text"], language=None)
+        else:
+            st.warning("최종 수정본을 파싱하지 못했습니다. 토론 과정 > Round 3 원문을 참고하세요.")
+
+
+if __name__ == "__main__":
+    main()
