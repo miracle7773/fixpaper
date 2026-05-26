@@ -124,19 +124,8 @@ def main() -> None:
     st.set_page_config(page_title="Fixpaper — Claude × GPT 글 교정", page_icon="✏️", layout="wide")
     st.title("✏️ Fixpaper — Claude × GPT 글 교정")
 
-    # ── Sidebar: API keys ──────────────────────────────────────────────────
-    with st.sidebar:
-        st.header("🔑 API 키 설정")
-        anthropic_key = st.text_input(
-            "Anthropic API Key",
-            value=os.getenv("ANTHROPIC_API_KEY", ""),
-            type="password",
-        )
-        openai_key = st.text_input(
-            "OpenAI API Key",
-            value=os.getenv("OPENAI_API_KEY", ""),
-            type="password",
-        )
+    anthropic_key = os.getenv("ANTHROPIC_API_KEY", "")
+    openai_key = os.getenv("OPENAI_API_KEY", "")
 
     # ── Input ──────────────────────────────────────────────────────────────
     st.subheader("📄 글 입력")
