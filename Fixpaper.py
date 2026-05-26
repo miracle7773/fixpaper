@@ -124,8 +124,12 @@ def main() -> None:
     st.set_page_config(page_title="Fixpaper — Claude × GPT 글 교정", page_icon="✏️", layout="wide")
     st.title("✏️ Fixpaper — Claude × GPT 글 교정")
 
-    anthropic_key = os.getenv("ANTHROPIC_API_KEY", "")
-    openai_key = os.getenv("OPENAI_API_KEY", "")
+    try:
+        anthropic_key = st.secrets.get("ANTHROPIC_API_KEY", "") or os.getenv("ANTHROPIC_API_KEY", "")
+        openai_key = st.secrets.get("OPENAI_API_KEY", "") or os.getenv("OPENAI_API_KEY", "")
+    except Exception:
+        anthropic_key = os.getenv("ANTHROPIC_API_KEY", "")
+        openai_key = os.getenv("OPENAI_API_KEY", "")
 
     # ── Input ──────────────────────────────────────────────────────────────
     st.subheader("📄 글 입력")
