@@ -84,6 +84,20 @@ def build_round3_prompt(text: str, round1: str, round2: str) -> str:
 
 # ── Output parser ─────────────────────────────────────────────────────────────
 
+def parse_final_output(response: str) -> dict[str, str]:
+    """Split Claude Round 3 response into summary and final_text."""
+    summary = ""
+    final_text = ""
+
+    if "## 변경 사항 요약" in response and "## 최종 수정본" in response:
+        parts = response.split("## 최종 수정본", 1)
+        summary_raw = parts[0].split("## 변경 사항 요약", 1)[-1]
+        summary = summary_raw.strip()
+        final_text = parts[1].strip()
+
+    return {"summary": summary, "final_text": final_text}
+
+
 # ── API callers ───────────────────────────────────────────────────────────────
 
 # ── Debate orchestrator ───────────────────────────────────────────────────────

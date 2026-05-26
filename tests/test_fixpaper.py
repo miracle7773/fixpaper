@@ -117,3 +117,27 @@ def test_round3_prompt_contains_all_three():
     # Headers must appear before user content
     assert prompt.index("## 변경 사항 요약") < prompt.index("<원본글>")
     assert prompt.index("## 최종 수정본") < prompt.index("<원본글>")
+
+
+from Fixpaper import parse_final_output
+
+
+SAMPLE_ROUND3 = """## 변경 사항 요약
+- 첫 문장 수정: 주어가 불명확했음
+- 결론 보강: 논리 흐름 개선
+
+## 최종 수정본
+이것은 수정된 글입니다. 훨씬 명확해졌습니다."""
+
+
+def test_parse_final_output_splits_sections():
+    result = parse_final_output(SAMPLE_ROUND3)
+    assert "첫 문장 수정" in result["summary"]
+    assert "이것은 수정된 글입니다" in result["final_text"]
+
+
+def test_parse_final_output_missing_section():
+    """Returns empty string for sections not found."""
+    result = parse_final_output("아무 헤더도 없는 텍스트")
+    assert result["summary"] == ""
+    assert result["final_text"] == ""
