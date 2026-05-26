@@ -143,7 +143,7 @@ def test_parse_final_output_missing_section():
     assert result["final_text"] == ""
 
 
-from Fixpaper import call_claude, call_gpt, run_debate
+from Fixpaper import call_claude, call_gpt
 
 
 def test_call_claude_returns_text():
@@ -172,15 +172,3 @@ def test_call_gpt_returns_text():
     )
 
 
-def test_run_debate_returns_all_rounds():
-    with patch("Fixpaper.call_claude", side_effect=["Round1 응답", "Round3 응답"]) as mc, \
-         patch("Fixpaper.call_gpt", return_value="Round2 응답") as mg, \
-         patch("Fixpaper.anthropic.Anthropic", return_value=MagicMock()), \
-         patch("Fixpaper.openai.OpenAI", return_value=MagicMock()):
-        result = run_debate("원본 글", "fake-anthropic-key", "fake-openai-key")
-
-    assert result["round1"] == "Round1 응답"
-    assert result["round2"] == "Round2 응답"
-    assert result["round3"]["raw"] == "Round3 응답"
-    assert "summary" in result["round3"]
-    assert "final_text" in result["round3"]

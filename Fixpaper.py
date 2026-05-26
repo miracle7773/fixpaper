@@ -100,10 +100,10 @@ def parse_final_output(response: str) -> dict[str, str]:
 
 # ── API callers ───────────────────────────────────────────────────────────────
 
-def call_claude(prompt: str, client: anthropic.Anthropic) -> str:
+def call_claude(prompt: str, client: anthropic.Anthropic, max_tokens: int = 2048) -> str:
     response = client.messages.create(
         model="claude-sonnet-4-6",
-        max_tokens=2048,
+        max_tokens=max_tokens,
         messages=[{"role": "user", "content": prompt}],
     )
     return response.content[0].text
@@ -117,24 +117,6 @@ def call_gpt(prompt: str, client: openai.OpenAI) -> str:
     )
     return response.choices[0].message.content
 
-
-# ── Debate orchestrator ───────────────────────────────────────────────────────
-
-def run_debate(text: str, anthropic_key: str, openai_key: str) -> dict:
-    """Run 3-round Claude↔GPT debate and return all round outputs."""
-    claude_client = anthropic.Anthropic(api_key=anthropic_key)
-    gpt_client = openai.OpenAI(api_key=openai_key)
-
-    round1 = call_claude(build_round1_prompt(text), claude_client)
-    round2 = call_gpt(build_round2_prompt(text, round1), gpt_client)
-    round3_raw = call_claude(build_round3_prompt(text, round1, round2), claude_client)
-    round3_parsed = parse_final_output(round3_raw)
-
-    return {
-        "round1": round1,
-        "round2": round2,
-        "round3": {"raw": round3_raw, **round3_parsed},
-    }
 
 # ── Streamlit UI ──────────────────────────────────────────────────────────────
 
@@ -174,6 +156,11 @@ def main() -> None:
     elif text_input.strip():
         input_text = text_input.strip()
 
+    MAX_CHARS = 50_000
+    if input_text and len(input_text) > MAX_CHARS:
+        st.warning(f"입력 글이 너무 깁니다 ({len(input_text):,}자). {MAX_CHARS:,}자 이하로 줄여주세요.")
+        input_text = None
+
     # ── Run ────────────────────────────────────────────────────────────────
     if st.button("🚀 교정 시작", disabled=not input_text):
         if not anthropic_key:
@@ -194,7 +181,7 @@ def main() -> None:
                 round2 = call_gpt(build_round2_prompt(input_text, round1), gpt_client)
 
             with st.spinner("Round 3 진행 중 — Claude 최종 통합..."):
-                round3_raw = call_claude(build_round3_prompt(input_text, round1, round2), claude_client)
+                round3_raw = call_claude(build_round3_prompt(input_text, round1, round2), claude_client, max_tokens=4096)
                 round3 = parse_final_output(round3_raw)
 
         except Exception as e:
