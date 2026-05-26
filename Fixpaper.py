@@ -38,8 +38,9 @@ def build_round1_prompt(text: str) -> str:
 문체, 논리 흐름, 표현의 명확성, 문법을 기준으로 검토하세요.
 입력된 글과 동일한 언어로 답변하세요.
 
-[원본 글]
-{text}"""
+<원본글>
+{text}
+</원본글>"""
 
 
 def build_round2_prompt(text: str, round1: str) -> str:
@@ -48,11 +49,13 @@ Claude의 제안 중 동의하는 부분, 보완할 부분, 반박할 부분을 
 Claude가 놓친 부분이 있다면 추가로 지적하세요.
 입력된 글과 동일한 언어로 답변하세요.
 
-[원본 글]
+<원본글>
 {text}
+</원본글>
 
-[Claude 제안]
-{round1}"""
+<claude_제안>
+{round1}
+</claude_제안>"""
 
 
 def build_round3_prompt(text: str, round1: str, round2: str) -> str:
@@ -66,14 +69,17 @@ def build_round3_prompt(text: str, round1: str, round2: str) -> str:
 ## 최종 수정본
 완성된 수정 글을 여기에 작성하세요.
 
-[원본 글]
+<원본글>
 {text}
+</원본글>
 
-[내 초기 제안]
+<내_초기_제안>
 {round1}
+</내_초기_제안>
 
-[GPT 피드백]
-{round2}"""
+<gpt_피드백>
+{round2}
+</gpt_피드백>"""
 
 
 # ── Output parser ─────────────────────────────────────────────────────────────
