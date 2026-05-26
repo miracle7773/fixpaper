@@ -18,14 +18,12 @@ load_dotenv()
 # ── File parsers ──────────────────────────────────────────────────────────────
 
 def parse_pdf(file_bytes: bytes) -> str:
-    """Extract text from PDF bytes, one page per line."""
     with pdfplumber.open(io.BytesIO(file_bytes)) as pdf:
         pages = [p.extract_text() for p in pdf.pages]
     return "\n".join(p for p in pages if p)
 
 
 def parse_docx(file_bytes: bytes) -> str:
-    """Extract paragraph text from DOCX bytes."""
     doc = Document(io.BytesIO(file_bytes))
     return "\n".join(p.text for p in doc.paragraphs if p.text.strip())
 
@@ -82,19 +80,32 @@ def build_round3_prompt(text: str, round1: str, round2: str) -> str:
 </gpt_피드백>"""
 
 
+def build_chat_system(original_text: str, current_text: str) -> str:
+    return f"""당신은 글쓰기 편집 보조입니다.
+아래는 사용자의 원본 글과 현재 수정본입니다.
+사용자의 요청에 따라 수정본을 다듬어주세요.
+요청한 부분만 수정하고 나머지는 건드리지 마세요.
+입력된 글과 동일한 언어로 답변하세요.
+
+<원본글>
+{original_text}
+</원본글>
+
+<현재_수정본>
+{current_text}
+</현재_수정본>"""
+
+
 # ── Output parser ─────────────────────────────────────────────────────────────
 
 def parse_final_output(response: str) -> dict[str, str]:
-    """Split Claude Round 3 response into summary and final_text."""
     summary = ""
     final_text = ""
-
     if "## 변경 사항 요약" in response and "## 최종 수정본" in response:
         parts = response.split("## 최종 수정본", 1)
         summary_raw = parts[0].split("## 변경 사항 요약", 1)[-1]
         summary = summary_raw.strip()
         final_text = parts[1].strip()
-
     return {"summary": summary, "final_text": final_text}
 
 
@@ -105,6 +116,20 @@ def call_claude(prompt: str, client: anthropic.Anthropic, max_tokens: int = 2048
         model="claude-sonnet-4-6",
         max_tokens=max_tokens,
         messages=[{"role": "user", "content": prompt}],
+    )
+    return response.content[0].text
+
+
+def call_claude_chat(
+    messages: list[dict],
+    system: str,
+    client: anthropic.Anthropic,
+) -> str:
+    response = client.messages.create(
+        model="claude-sonnet-4-6",
+        max_tokens=4096,
+        system=system,
+        messages=messages,
     )
     return response.content[0].text
 
@@ -131,80 +156,142 @@ def main() -> None:
         anthropic_key = os.getenv("ANTHROPIC_API_KEY", "")
         openai_key = os.getenv("OPENAI_API_KEY", "")
 
-    # ── Input ──────────────────────────────────────────────────────────────
-    st.subheader("📄 글 입력")
-    uploaded_file = st.file_uploader("파일 업로드 (PDF 또는 DOCX)", type=["pdf", "docx"])
+    # ── Session state init ─────────────────────────────────────────────────
+    for key, default in [
+        ("debate_done", False),
+        ("original_text", ""),
+        ("current_text", ""),
+        ("debate_data", {}),
+        ("chat_messages", []),
+    ]:
+        if key not in st.session_state:
+            st.session_state[key] = default
 
-    text_input = st.text_area("또는 직접 입력", height=200, placeholder="여기에 글을 붙여넣으세요...")
+    # ── Phase 1: 글 입력 + 교정 시작 ──────────────────────────────────────
+    if not st.session_state.debate_done:
+        st.subheader("📄 글 입력")
+        uploaded_file = st.file_uploader("파일 업로드 (PDF 또는 DOCX)", type=["pdf", "docx"])
+        text_input = st.text_area("또는 직접 입력", height=200, placeholder="여기에 글을 붙여넣으세요...")
 
-    # Resolve input text
-    input_text: Optional[str] = None
-    if uploaded_file is not None:
-        file_bytes = uploaded_file.getvalue()
-        if uploaded_file.name.lower().endswith(".pdf"):
-            input_text = parse_pdf(file_bytes)
-        else:
-            input_text = parse_docx(file_bytes)
-        st.success(f"파일 로드 완료: {len(input_text)}자")
-    elif text_input.strip():
-        input_text = text_input.strip()
+        input_text: Optional[str] = None
+        if uploaded_file is not None:
+            file_bytes = uploaded_file.getvalue()
+            if uploaded_file.name.lower().endswith(".pdf"):
+                input_text = parse_pdf(file_bytes)
+            else:
+                input_text = parse_docx(file_bytes)
+            st.success(f"파일 로드 완료: {len(input_text)}자")
+        elif text_input.strip():
+            input_text = text_input.strip()
 
-    MAX_CHARS = 50_000
-    if input_text and len(input_text) > MAX_CHARS:
-        st.warning(f"입력 글이 너무 깁니다 ({len(input_text):,}자). {MAX_CHARS:,}자 이하로 줄여주세요.")
-        input_text = None
+        MAX_CHARS = 50_000
+        if input_text and len(input_text) > MAX_CHARS:
+            st.warning(f"입력 글이 너무 깁니다 ({len(input_text):,}자). {MAX_CHARS:,}자 이하로 줄여주세요.")
+            input_text = None
 
-    # ── Run ────────────────────────────────────────────────────────────────
-    if st.button("🚀 교정 시작", disabled=not input_text):
-        if not anthropic_key:
-            st.error("Anthropic API 키를 입력해주세요.")
-            return
-        if not openai_key:
-            st.error("OpenAI API 키를 입력해주세요.")
-            return
+        if st.button("🚀 교정 시작", disabled=not input_text):
+            if not anthropic_key:
+                st.error("Anthropic API 키가 설정되지 않았습니다.")
+                return
+            if not openai_key:
+                st.error("OpenAI API 키가 설정되지 않았습니다.")
+                return
 
-        try:
-            claude_client = anthropic.Anthropic(api_key=anthropic_key)
-            gpt_client = openai.OpenAI(api_key=openai_key)
+            try:
+                claude_client = anthropic.Anthropic(api_key=anthropic_key)
+                gpt_client = openai.OpenAI(api_key=openai_key)
 
-            with st.spinner("Round 1 진행 중 — Claude 분석..."):
-                round1 = call_claude(build_round1_prompt(input_text), claude_client)
+                with st.spinner("Round 1 진행 중 — Claude 분석..."):
+                    round1 = call_claude(build_round1_prompt(input_text), claude_client)
 
-            with st.spinner("Round 2 진행 중 — GPT 반박/보완..."):
-                round2 = call_gpt(build_round2_prompt(input_text, round1), gpt_client)
+                with st.spinner("Round 2 진행 중 — GPT 반박/보완..."):
+                    round2 = call_gpt(build_round2_prompt(input_text, round1), gpt_client)
 
-            with st.spinner("Round 3 진행 중 — Claude 최종 통합..."):
-                round3_raw = call_claude(build_round3_prompt(input_text, round1, round2), claude_client, max_tokens=4096)
-                round3 = parse_final_output(round3_raw)
+                with st.spinner("Round 3 진행 중 — Claude 최종 통합..."):
+                    round3_raw = call_claude(
+                        build_round3_prompt(input_text, round1, round2),
+                        claude_client,
+                        max_tokens=4096,
+                    )
+                    round3 = parse_final_output(round3_raw)
 
-        except Exception as e:
-            st.error(f"오류가 발생했습니다: {e}")
-            return
+            except Exception as e:
+                st.error(f"오류가 발생했습니다: {e}")
+                return
 
-        # ── Results ────────────────────────────────────────────────────────
+            st.session_state.original_text = input_text
+            st.session_state.current_text = round3["final_text"] or round3_raw
+            st.session_state.debate_data = {
+                "round1": round1,
+                "round2": round2,
+                "round3_raw": round3_raw,
+                "round3": round3,
+            }
+            st.session_state.debate_done = True
+            st.rerun()
+
+    # ── Phase 2: 결과 + 채팅 ──────────────────────────────────────────────
+    else:
+        d = st.session_state.debate_data
+
+        if st.button("🔄 새 글 교정하기"):
+            for key in ["debate_done", "original_text", "current_text", "debate_data", "chat_messages"]:
+                del st.session_state[key]
+            st.rerun()
+
         st.divider()
 
         with st.expander("💬 토론 과정 보기"):
             st.markdown("**Round 1 — Claude 분석**")
-            st.markdown(round1)
+            st.markdown(d["round1"])
             st.markdown("---")
             st.markdown("**Round 2 — GPT 반박/보완**")
-            st.markdown(round2)
+            st.markdown(d["round2"])
             st.markdown("---")
             st.markdown("**Round 3 — Claude 통합 (원문)**")
-            st.markdown(round3_raw)
+            st.markdown(d["round3_raw"])
 
         st.subheader("📋 변경 사항 요약")
-        if round3["summary"]:
-            st.markdown(round3["summary"])
+        if d["round3"]["summary"]:
+            st.markdown(d["round3"]["summary"])
         else:
             st.warning("변경 사항 요약을 파싱하지 못했습니다. 토론 과정 > Round 3 원문을 참고하세요.")
 
         st.subheader("✅ 최종 수정본")
-        if round3["final_text"]:
-            st.code(round3["final_text"], language=None)
-        else:
-            st.warning("최종 수정본을 파싱하지 못했습니다. 토론 과정 > Round 3 원문을 참고하세요.")
+        st.code(st.session_state.current_text, language=None)
+
+        # ── 채팅 ──────────────────────────────────────────────────────────
+        st.divider()
+        st.subheader("💬 추가 수정 요청")
+        st.caption("수정본을 기반으로 원하는 부분을 자유롭게 요청하세요.")
+
+        for msg in st.session_state.chat_messages:
+            with st.chat_message(msg["role"]):
+                st.markdown(msg["content"])
+
+        if user_input := st.chat_input("예: 3문단을 더 formal하게 해줘 / 결론만 다시 써줘"):
+            if not anthropic_key:
+                st.error("Anthropic API 키가 설정되지 않았습니다.")
+                return
+
+            st.session_state.chat_messages.append({"role": "user", "content": user_input})
+            with st.chat_message("user"):
+                st.markdown(user_input)
+
+            with st.chat_message("assistant"):
+                with st.spinner("..."):
+                    claude_client = anthropic.Anthropic(api_key=anthropic_key)
+                    reply = call_claude_chat(
+                        messages=st.session_state.chat_messages,
+                        system=build_chat_system(
+                            st.session_state.original_text,
+                            st.session_state.current_text,
+                        ),
+                        client=claude_client,
+                    )
+                st.markdown(reply)
+
+            st.session_state.chat_messages.append({"role": "assistant", "content": reply})
 
 
 if __name__ == "__main__":
