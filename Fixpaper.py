@@ -165,8 +165,8 @@ def main() -> None:
     # Resolve input text
     input_text: Optional[str] = None
     if uploaded_file is not None:
-        file_bytes = uploaded_file.read()
-        if uploaded_file.name.endswith(".pdf"):
+        file_bytes = uploaded_file.getvalue()
+        if uploaded_file.name.lower().endswith(".pdf"):
             input_text = parse_pdf(file_bytes)
         else:
             input_text = parse_docx(file_bytes)
@@ -175,7 +175,7 @@ def main() -> None:
         input_text = text_input.strip()
 
     # ── Run ────────────────────────────────────────────────────────────────
-    if st.button("🚀 교정 시작", disabled=input_text is None):
+    if st.button("🚀 교정 시작", disabled=not input_text):
         if not anthropic_key:
             st.error("Anthropic API 키를 입력해주세요.")
             return
