@@ -17,6 +17,19 @@ load_dotenv()
 
 # ── File parsers ──────────────────────────────────────────────────────────────
 
+def parse_pdf(file_bytes: bytes) -> str:
+    """Extract text from PDF bytes, one page per line."""
+    with pdfplumber.open(io.BytesIO(file_bytes)) as pdf:
+        pages = [p.extract_text() for p in pdf.pages]
+    return "\n".join(p for p in pages if p)
+
+
+def parse_docx(file_bytes: bytes) -> str:
+    """Extract paragraph text from DOCX bytes."""
+    doc = Document(io.BytesIO(file_bytes))
+    return "\n".join(p.text for p in doc.paragraphs if p.text.strip())
+
+
 # ── Prompt builders ───────────────────────────────────────────────────────────
 
 # ── Output parser ─────────────────────────────────────────────────────────────
