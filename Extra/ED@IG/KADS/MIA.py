@@ -128,7 +128,7 @@ def build_pca_order(member_files, nonmember_files, n_components=50):
 
     combined = np.vstack([member_feats, nonmember_feats])
     n_components = min(n_components, combined.shape[0])
-    pca = PCA(n_components=n_components)
+    pca = PCA(n_components=n_components, random_state=42)
     combined_proj = pca.fit_transform(combined)
     centroid = combined_proj.mean(axis=0)
 
@@ -153,6 +153,7 @@ def make_nested_orders(real_files, fake_files, data_seed):
     print(f"  Building PCA order for data_seed={data_seed}...")
     member_order, nonmember_order = build_pca_order(member_pool, nonmember_pool)
 
+    # fake pool: seeded random order is sufficient; PCA ordering not required for fakes
     rng_fake = random.Random(data_seed + 303)
     fake_order = fake_files[:]
     rng_fake.shuffle(fake_order)
