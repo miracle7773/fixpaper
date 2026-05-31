@@ -15,10 +15,11 @@ from PIL import Image
 from scipy import stats
 from sklearn.decomposition import PCA
 from sklearn.metrics import roc_auc_score, roc_curve, precision_score, recall_score
-from xgboost import XGBClassifier
 import matplotlib.pyplot as plt
 
-warnings.filterwarnings("ignore")
+# DeprecationWarning/FutureWarning은 라이브러리 노이즈; UserWarning은 살려서 build_pca_order 파일 누락 경고가 보이게 한다
+warnings.filterwarnings("ignore", category=DeprecationWarning)
+warnings.filterwarnings("ignore", category=FutureWarning)
 
 # ── Configuration ─────────────────────────────────────────────────────────────
 # Configuration : 설정값
@@ -523,6 +524,7 @@ def run_xgb_attack(member_val_signals, nonmember_val_signals, member_test_signal
     Threshold   : Youden J on val ROC (not test) — leakage 방지
     Reported   : AUC_XGB, TPR@1%FPR_XGB, Adv_XGB, precision_xgb, recall_xgb, separation d
     """
+    from xgboost import XGBClassifier
     X_val, y_val = stack_xgb_features(member_val_signals, nonmember_val_signals)
     X_test, y_test = stack_xgb_features(member_test_signals, nonmember_test_signals)
 
