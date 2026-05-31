@@ -417,10 +417,10 @@ def evaluate_mia(member_signals, nonmember_signals, threshold):
     preds = (loss_scores >= threshold).astype(int)
     precision = precision_score(labels, preds, zero_division=0)
     recall = recall_score(labels, preds, zero_division=0)
-    loss_gap        = float(np.mean(nonmember_signals["losses"]) - np.mean(member_signals["losses"]))
-    conf_gap        = float(np.mean(member_signals["confidence"]) - np.mean(nonmember_signals["confidence"]))
-    entr_gap        = float(np.mean(nonmember_signals["entropy"]) - np.mean(member_signals["entropy"]))
-    margin_gap      = float(np.mean(member_signals["margin"]) - np.mean(nonmember_signals["margin"]))
+    loss_gap = float(np.mean(nonmember_signals["losses"]) - np.mean(member_signals["losses"]))
+    conf_gap = float(np.mean(member_signals["confidence"]) - np.mean(nonmember_signals["confidence"]))
+    entr_gap = float(np.mean(nonmember_signals["entropy"]) - np.mean(member_signals["entropy"]))
+    margin_gap = float(np.mean(member_signals["margin"]) - np.mean(nonmember_signals["margin"]))
     _, loss_separation_d = standardized_gap(loss_scores_m, loss_scores_nm)
     attack_advantage = float(np.max(tpr - fpr))
 
@@ -430,8 +430,8 @@ def evaluate_mia(member_signals, nonmember_signals, threshold):
         "auc_entr": auc_entr,
         "auc_margin": auc_margin,
         "auc_aug_mean": auc_aug_mean,
-        "auc_aug_std":  auc_aug_std,
-        "member_aug_std":    member_signals["aug_loss_std"],
+        "auc_aug_std": auc_aug_std,
+        "member_aug_std": member_signals["aug_loss_std"],
         "nonmember_aug_std": nonmember_signals["aug_loss_std"],
         "tpr_at_1fpr": tpr_at_1fpr,
         "precision": float(precision),
@@ -441,12 +441,12 @@ def evaluate_mia(member_signals, nonmember_signals, threshold):
         "tpr": tpr,
         "member_losses": member_signals["losses"],
         "nonmember_losses": nonmember_signals["losses"],
-        "member_confidences":    member_signals["confidence"],
+        "member_confidences": member_signals["confidence"],
         "nonmember_confidences": nonmember_signals["confidence"],
-        "member_entropies":      member_signals["entropy"],
-        "nonmember_entropies":   nonmember_signals["entropy"],
-        "member_margins":        member_signals["margin"],
-        "nonmember_margins":     nonmember_signals["margin"],
+        "member_entropies": member_signals["entropy"],
+        "nonmember_entropies": nonmember_signals["entropy"],
+        "member_margins": member_signals["margin"],
+        "nonmember_margins": nonmember_signals["margin"],
         "loss_gap": loss_gap,
         "conf_gap": conf_gap,
         "entr_gap": entr_gap,
@@ -515,7 +515,7 @@ def run_xgb_attack(member_val_signals, nonmember_val_signals, member_test_signal
     precision_xgb = float(precision_score(y_test, preds, zero_division=0))
     recall_xgb    = float(recall_score(y_test, preds, zero_division=0))
 
-    member_xgb_scores    = scores[y_test == 1]
+    member_xgb_scores = scores[y_test == 1]
     nonmember_xgb_scores = scores[y_test == 0]
     xgb_score_gap, xgb_separation_d = standardized_gap(member_xgb_scores, nonmember_xgb_scores)
 
@@ -540,11 +540,11 @@ def run_xgb_attack(member_val_signals, nonmember_val_signals, member_test_signal
 # ── Run One Experiment ────────────────────────────────────────────────────────
 
 def _prepare_splits(data_seed, n, member_order, nonmember_order, fake_order):
-    sampled_members    = member_order[:n]
+    sampled_members = member_order[:n]
     sampled_nonmembers = nonmember_order[:n]
-    sampled_fakes      = fake_order[:n]
+    sampled_fakes = fake_order[:n]
 
-    base_seed   = SEED + data_seed * 10000 + n * 10
+    base_seed = SEED + data_seed * 10000 + n * 10
     attack_seed = base_seed + 3
 
     real_train_files, real_val_files = split_files_train_val_nested(sampled_members, TRAIN_VAL_RATIO)
@@ -560,40 +560,40 @@ def _prepare_splits(data_seed, n, member_order, nonmember_order, fake_order):
     )
     return {
         "real_train_files": real_train_files,
-        "real_val_files":   real_val_files,
+        "real_val_files": real_val_files,
         "fake_train_files": fake_train_files,
-        "fake_val_files":   fake_val_files,
-        "attack_files":     attack_files,
-        "base_seed":        base_seed,
-        "attack_seed":      attack_seed,
+        "fake_val_files": fake_val_files,
+        "attack_files": attack_files,
+        "base_seed": base_seed,
+        "attack_seed": attack_seed,
     }
 
 
 def _run_single_model(splits, run_idx, data_seed, n):
     real_train_files = splits["real_train_files"]
-    real_val_files   = splits["real_val_files"]
+    real_val_files = splits["real_val_files"]
     fake_train_files = splits["fake_train_files"]
-    fake_val_files   = splits["fake_val_files"]
-    attack_files     = splits["attack_files"]
-    base_seed        = splits["base_seed"]
-    attack_seed      = splits["attack_seed"]
+    fake_val_files = splits["fake_val_files"]
+    attack_files = splits["attack_files"]
+    base_seed = splits["base_seed"]
+    attack_seed = splits["attack_seed"]
 
-    model_seed  = base_seed + run_idx
+    model_seed = base_seed + run_idx
     loader_seed = model_seed + 2
 
     print(f"\n  [Model Run {run_idx + 1}/{NUM_MODEL_RUNS}]  model_seed={model_seed}")
     set_global_seed(model_seed)
 
-    member_real_train_ds     = FaceDataset(real_train_files, label=0, transform=transform)
-    member_real_val_ds       = FaceDataset(real_val_files,   label=0, transform=transform)
-    fake_train_ds            = FaceDataset(fake_train_files, label=1, transform=transform)
-    fake_val_ds              = FaceDataset(fake_val_files,   label=1, transform=transform)
-    attack_member_val_ds     = FaceDataset(attack_files["member_attack_val"],     label=0, transform=transform)
-    attack_member_test_ds    = FaceDataset(attack_files["member_attack_test"],    label=0, transform=transform)
-    attack_nonmember_val_ds  = FaceDataset(attack_files["nonmember_attack_val"],  label=0, transform=transform)
+    member_real_train_ds = FaceDataset(real_train_files, label=0, transform=transform)
+    member_real_val_ds = FaceDataset(real_val_files, label=0, transform=transform)
+    fake_train_ds = FaceDataset(fake_train_files, label=1, transform=transform)
+    fake_val_ds = FaceDataset(fake_val_files, label=1, transform=transform)
+    attack_member_val_ds = FaceDataset(attack_files["member_attack_val"], label=0, transform=transform)
+    attack_member_test_ds = FaceDataset(attack_files["member_attack_test"], label=0, transform=transform)
+    attack_nonmember_val_ds = FaceDataset(attack_files["nonmember_attack_val"], label=0, transform=transform)
     attack_nonmember_test_ds = FaceDataset(attack_files["nonmember_attack_test"], label=0, transform=transform)
 
-    train_gen    = torch.Generator().manual_seed(loader_seed)
+    train_gen = torch.Generator().manual_seed(loader_seed)
     train_loader = DataLoader(
         ConcatDataset([member_real_train_ds, fake_train_ds]),
         batch_size=BATCH_SIZE, shuffle=True, num_workers=NUM_WORKERS, generator=train_gen,
@@ -626,12 +626,12 @@ def _run_single_model(splits, run_idx, data_seed, n):
         )
 
     print("      Computing attack-validation signals...")
-    member_val_signals    = compute_signals(model, attack_member_val_ds,    aug_seed=attack_seed)
+    member_val_signals = compute_signals(model, attack_member_val_ds, aug_seed=attack_seed)
     nonmember_val_signals = compute_signals(model, attack_nonmember_val_ds, aug_seed=attack_seed)
     threshold = choose_threshold_on_attack_val(member_val_signals, nonmember_val_signals)
 
     print("      Computing attack-test signals...")
-    member_test_signals    = compute_signals(model, attack_member_test_ds,    aug_seed=attack_seed)
+    member_test_signals = compute_signals(model, attack_member_test_ds, aug_seed=attack_seed)
     nonmember_test_signals = compute_signals(model, attack_nonmember_test_ds, aug_seed=attack_seed)
 
     res = evaluate_mia(member_test_signals, nonmember_test_signals, threshold)
@@ -641,13 +641,17 @@ def _run_single_model(splits, run_idx, data_seed, n):
         seed=attack_seed,
     ))
     res.update({
-        "data_seed": data_seed, "subset_size": n, "model_run": run_idx + 1,
+        "data_seed": data_seed,
+        "subset_size": n,
+        "model_run": run_idx + 1,
         "model_seed": model_seed,
-        "n_train_member":       len(member_real_train_ds),
-        "n_val_real_excluded":  len(member_real_val_ds),
-        "n_attack_val_member":  len(attack_member_val_ds),
+        "n_train_member": len(member_real_train_ds),
+        "n_val_real_excluded": len(member_real_val_ds),
+        "n_attack_val_member": len(attack_member_val_ds),
         "n_attack_test_member": len(attack_member_test_ds),
-        "best_train_loss": best_train_loss, "best_val_loss": best_val_loss, "gen_gap": gen_gap,
+        "best_train_loss": best_train_loss,
+        "best_val_loss": best_val_loss,
+        "gen_gap": gen_gap,
     })
     print(
         f"      AUC_loss={res['auc_loss']:.4f}  AUC_XGB={res['auc_xgb']:.4f}  "
@@ -668,14 +672,14 @@ def _run_single_model(splits, run_idx, data_seed, n):
 
 
 def _aggregate_runs(run_results, data_seed, n):
-    aucs               = _collect(run_results, "auc_loss")
-    tprs               = _collect(run_results, "tpr_at_1fpr")
-    aucs_xgb           = _collect(run_results, "auc_xgb")
-    tprs_xgb           = _collect(run_results, "tpr_at_1fpr_xgb")
-    advs_xgb           = _collect(run_results, "attack_advantage_xgb")
-    attack_advantages  = _collect(run_results, "attack_advantage")
-    aucs_margin        = _collect(run_results, "auc_margin")
-    margin_gaps        = _collect(run_results, "margin_gap")
+    aucs = _collect(run_results, "auc_loss")
+    tprs = _collect(run_results, "tpr_at_1fpr")
+    aucs_xgb = _collect(run_results, "auc_xgb")
+    tprs_xgb = _collect(run_results, "tpr_at_1fpr_xgb")
+    advs_xgb = _collect(run_results, "attack_advantage_xgb")
+    attack_advantages = _collect(run_results, "attack_advantage")
+    aucs_margin = _collect(run_results, "auc_margin")
+    margin_gaps = _collect(run_results, "margin_gap")
     loss_separation_ds = _collect(run_results, "loss_separation_d")
 
     ci = stats.t.interval(0.95, df=len(aucs) - 1, loc=np.mean(aucs), scale=stats.sem(aucs)) if len(aucs) >= 2 else (np.nan, np.nan)
@@ -705,57 +709,57 @@ def _aggregate_runs(run_results, data_seed, n):
     )
 
     median_run_idx = int(np.argsort(aucs)[len(aucs) // 2])
-    median_res     = run_results[median_run_idx]
+    median_res = run_results[median_run_idx]
 
     return {
-        "data_seed":    data_seed,
-        "subset_size":  n,
-        "auc_loss":     float(np.mean(aucs)),
+        "data_seed": data_seed,
+        "subset_size": n,
+        "auc_loss": float(np.mean(aucs)),
         "auc_loss_std": float(np.std(aucs)),
-        "auc_conf":     _mean(run_results, "auc_conf"),
-        "auc_entr":     _mean(run_results, "auc_entr"),
-        "auc_margin":   float(np.mean(aucs_margin)),
-        "auc_xgb":      float(np.mean(aucs_xgb)),
-        "tpr_at_1fpr_xgb":      float(np.mean(tprs_xgb)),
+        "auc_conf": _mean(run_results, "auc_conf"),
+        "auc_entr": _mean(run_results, "auc_entr"),
+        "auc_margin": float(np.mean(aucs_margin)),
+        "auc_xgb": float(np.mean(aucs_xgb)),
+        "tpr_at_1fpr_xgb": float(np.mean(tprs_xgb)),
         "attack_advantage_xgb": float(np.mean(advs_xgb)),
-        "auc_aug_mean":  _mean(run_results, "auc_aug_mean"),
-        "auc_aug_std":   _mean(run_results, "auc_aug_std"),
-        "member_aug_std":    median_res["member_aug_std"],
+        "auc_aug_mean": _mean(run_results, "auc_aug_mean"),
+        "auc_aug_std": _mean(run_results, "auc_aug_std"),
+        "member_aug_std": median_res["member_aug_std"],
         "nonmember_aug_std": median_res["nonmember_aug_std"],
-        "ci_low":  float(ci[0]),
+        "ci_low": float(ci[0]),
         "ci_high": float(ci[1]),
         "tpr_at_1fpr": float(np.mean(tprs)),
-        "tpr_std":     float(np.std(tprs)),
-        "precision":     _mean(run_results, "precision"),
-        "recall":        _mean(run_results, "recall"),
+        "tpr_std": float(np.std(tprs)),
+        "precision": _mean(run_results, "precision"),
+        "recall": _mean(run_results, "recall"),
         "precision_xgb": _mean(run_results, "precision_xgb"),
-        "recall_xgb":    _mean(run_results, "recall_xgb"),
-        "fpr":     median_res["fpr"],
-        "tpr":     median_res["tpr"],
+        "recall_xgb": _mean(run_results, "recall_xgb"),
+        "fpr": median_res["fpr"],
+        "tpr": median_res["tpr"],
         "fpr_xgb": median_res["fpr_xgb"],
         "tpr_xgb": median_res["tpr_xgb"],
         "xgb_scores": median_res["xgb_scores"],
         "xgb_labels": median_res["xgb_labels"],
-        "member_xgb_scores":    median_res["member_xgb_scores"],
+        "member_xgb_scores": median_res["member_xgb_scores"],
         "nonmember_xgb_scores": median_res["nonmember_xgb_scores"],
-        "member_losses":         median_res["member_losses"],
-        "nonmember_losses":      median_res["nonmember_losses"],
-        "member_confidences":    median_res["member_confidences"],
+        "member_losses": median_res["member_losses"],
+        "nonmember_losses": median_res["nonmember_losses"],
+        "member_confidences": median_res["member_confidences"],
         "nonmember_confidences": median_res["nonmember_confidences"],
-        "member_entropies":      median_res["member_entropies"],
-        "nonmember_entropies":   median_res["nonmember_entropies"],
-        "member_margins":        median_res["member_margins"],
-        "nonmember_margins":     median_res["nonmember_margins"],
-        "runs":              run_results,
-        "loss_gap":          _mean(run_results, "loss_gap"),
-        "conf_gap":          _mean(run_results, "conf_gap"),
-        "entr_gap":          _mean(run_results, "entr_gap"),
-        "margin_gap":        float(np.mean(margin_gaps)),
+        "member_entropies": median_res["member_entropies"],
+        "nonmember_entropies": median_res["nonmember_entropies"],
+        "member_margins": median_res["member_margins"],
+        "nonmember_margins": median_res["nonmember_margins"],
+        "runs": run_results,
+        "loss_gap": _mean(run_results, "loss_gap"),
+        "conf_gap": _mean(run_results, "conf_gap"),
+        "entr_gap": _mean(run_results, "entr_gap"),
+        "margin_gap": float(np.mean(margin_gaps)),
         "loss_separation_d": float(np.mean(loss_separation_ds)),
-        "xgb_score_gap":     _mean(run_results, "xgb_score_gap"),
-        "xgb_separation_d":  _mean(run_results, "xgb_separation_d"),
-        "attack_advantage":  float(np.mean(attack_advantages)),
-        "gen_gap":           _mean(run_results, "gen_gap"),
+        "xgb_score_gap": _mean(run_results, "xgb_score_gap"),
+        "xgb_separation_d": _mean(run_results, "xgb_separation_d"),
+        "attack_advantage": float(np.mean(attack_advantages)),
+        "gen_gap": _mean(run_results, "gen_gap"),
     }
 
 
@@ -780,65 +784,65 @@ def summarize_across_data_seeds(all_results):
         if not seed_results:
             continue
 
-        aucs     = _collect(seed_results, "auc_loss")
+        aucs = _collect(seed_results, "auc_loss")
         aucs_xgb = _collect(seed_results, "auc_xgb")
 
-        ci     = stats.t.interval(0.95, df=len(aucs) - 1,     loc=np.mean(aucs),     scale=stats.sem(aucs))     if len(aucs)     >= 2 else (np.nan, np.nan)
+        ci = stats.t.interval(0.95, df=len(aucs) - 1, loc=np.mean(aucs), scale=stats.sem(aucs)) if len(aucs) >= 2 else (np.nan, np.nan)
         ci_xgb = stats.t.interval(0.95, df=len(aucs_xgb) - 1, loc=np.mean(aucs_xgb), scale=stats.sem(aucs_xgb)) if len(aucs_xgb) >= 2 else (np.nan, np.nan)
 
         median_idx = int(np.argsort(aucs)[len(aucs) // 2])
         median_res = seed_results[median_idx]
 
         summary[n] = {
-            "subset_size":                    n,
-            "auc_loss":                       float(np.mean(aucs)),
+            "subset_size": n,
+            "auc_loss": float(np.mean(aucs)),
             "auc_loss_std_across_data_seeds": float(np.std(aucs)),
-            "auc_conf":                       _mean(seed_results, "auc_conf"),
-            "auc_entr":                       _mean(seed_results, "auc_entr"),
-            "ci_low_across_data_seeds":       float(ci[0]),
-            "ci_high_across_data_seeds":      float(ci[1]),
-            "tpr_at_1fpr":                    _mean(seed_results, "tpr_at_1fpr"),
-            "precision":                      _mean(seed_results, "precision"),
-            "recall":                         _mean(seed_results, "recall"),
-            "precision_xgb":                  _mean(seed_results, "precision_xgb"),
-            "recall_xgb":                     _mean(seed_results, "recall_xgb"),
-            "gen_gap":                        _mean(seed_results, "gen_gap"),
-            "fpr":                            median_res["fpr"],
-            "tpr":                            median_res["tpr"],
-            "member_losses":                  median_res["member_losses"],
-            "nonmember_losses":               median_res["nonmember_losses"],
-            "member_confidences":    median_res["member_confidences"],
+            "auc_conf": _mean(seed_results, "auc_conf"),
+            "auc_entr": _mean(seed_results, "auc_entr"),
+            "ci_low_across_data_seeds": float(ci[0]),
+            "ci_high_across_data_seeds": float(ci[1]),
+            "tpr_at_1fpr": _mean(seed_results, "tpr_at_1fpr"),
+            "precision": _mean(seed_results, "precision"),
+            "recall": _mean(seed_results, "recall"),
+            "precision_xgb": _mean(seed_results, "precision_xgb"),
+            "recall_xgb": _mean(seed_results, "recall_xgb"),
+            "gen_gap": _mean(seed_results, "gen_gap"),
+            "fpr": median_res["fpr"],
+            "tpr": median_res["tpr"],
+            "member_losses": median_res["member_losses"],
+            "nonmember_losses": median_res["nonmember_losses"],
+            "member_confidences": median_res["member_confidences"],
             "nonmember_confidences": median_res["nonmember_confidences"],
-            "member_entropies":      median_res["member_entropies"],
-            "nonmember_entropies":   median_res["nonmember_entropies"],
-            "member_margins":        median_res["member_margins"],
-            "nonmember_margins":     median_res["nonmember_margins"],
-            "member_xgb_scores":     median_res["member_xgb_scores"],
-            "nonmember_xgb_scores":  median_res["nonmember_xgb_scores"],
-            "loss_gap":    _mean(seed_results, "loss_gap"),
-            "conf_gap":    _mean(seed_results, "conf_gap"),
-            "entr_gap":    _mean(seed_results, "entr_gap"),
-            "auc_margin":  _mean(seed_results, "auc_margin"),
-            "auc_xgb":                       float(np.mean(aucs_xgb)),
+            "member_entropies": median_res["member_entropies"],
+            "nonmember_entropies": median_res["nonmember_entropies"],
+            "member_margins": median_res["member_margins"],
+            "nonmember_margins": median_res["nonmember_margins"],
+            "member_xgb_scores": median_res["member_xgb_scores"],
+            "nonmember_xgb_scores": median_res["nonmember_xgb_scores"],
+            "loss_gap": _mean(seed_results, "loss_gap"),
+            "conf_gap": _mean(seed_results, "conf_gap"),
+            "entr_gap": _mean(seed_results, "entr_gap"),
+            "auc_margin": _mean(seed_results, "auc_margin"),
+            "auc_xgb": float(np.mean(aucs_xgb)),
             "auc_xgb_std_across_data_seeds": float(np.std(aucs_xgb)),
-            "xgb_ci_low_across_data_seeds":  float(ci_xgb[0]),
+            "xgb_ci_low_across_data_seeds": float(ci_xgb[0]),
             "xgb_ci_high_across_data_seeds": float(ci_xgb[1]),
-            "tpr_at_1fpr_xgb":      _mean(seed_results, "tpr_at_1fpr_xgb"),
+            "tpr_at_1fpr_xgb": _mean(seed_results, "tpr_at_1fpr_xgb"),
             "attack_advantage_xgb": _mean(seed_results, "attack_advantage_xgb"),
-            "delta_auc_xgb_loss":   float(np.mean(aucs_xgb) - np.mean(aucs)),
-            "delta_tpr_xgb_loss":   float(_mean(seed_results, "tpr_at_1fpr_xgb") - _mean(seed_results, "tpr_at_1fpr")),
-            "delta_adv_xgb_loss":   float(_mean(seed_results, "attack_advantage_xgb") - _mean(seed_results, "attack_advantage")),
+            "delta_auc_xgb_loss": float(np.mean(aucs_xgb) - np.mean(aucs)),
+            "delta_tpr_xgb_loss": float(_mean(seed_results, "tpr_at_1fpr_xgb") - _mean(seed_results, "tpr_at_1fpr")),
+            "delta_adv_xgb_loss": float(_mean(seed_results, "attack_advantage_xgb") - _mean(seed_results, "attack_advantage")),
             "auc_aug_mean": _mean(seed_results, "auc_aug_mean"),
-            "auc_aug_std":  _mean(seed_results, "auc_aug_std"),
-            "member_aug_std":    median_res["member_aug_std"],
+            "auc_aug_std": _mean(seed_results, "auc_aug_std"),
+            "member_aug_std": median_res["member_aug_std"],
             "nonmember_aug_std": median_res["nonmember_aug_std"],
             "fpr_xgb": median_res["fpr_xgb"],
             "tpr_xgb": median_res["tpr_xgb"],
-            "margin_gap":        _mean(seed_results, "margin_gap"),
+            "margin_gap": _mean(seed_results, "margin_gap"),
             "loss_separation_d": _mean(seed_results, "loss_separation_d"),
-            "xgb_score_gap":     _mean(seed_results, "xgb_score_gap"),
-            "xgb_separation_d":  _mean(seed_results, "xgb_separation_d"),
-            "attack_advantage":  _mean(seed_results, "attack_advantage"),
+            "xgb_score_gap": _mean(seed_results, "xgb_score_gap"),
+            "xgb_separation_d": _mean(seed_results, "xgb_separation_d"),
+            "attack_advantage": _mean(seed_results, "attack_advantage"),
         }
     return summary
 
