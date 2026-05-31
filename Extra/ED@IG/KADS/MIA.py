@@ -119,19 +119,22 @@ def build_pca_order(member_files, nonmember_files, n_components=50):
         with torch.no_grad():
             for imgs, _ in loader:
                 feats.append(extractor(imgs.to(DEVICE)).cpu().numpy())
+        if len(ds.files) < len(files):
+            warnings.warn(f"build_pca_order: {len(files) - len(ds.files)} files dropped by FaceDataset")
         return np.vstack(feats), ds.files
 
     member_feats, valid_member = _extract(member_files)
     nonmember_feats, valid_nonmember = _extract(nonmember_files)
 
     combined = np.vstack([member_feats, nonmember_feats])
-    n_components = min(n_components, combined.shape[0], combined.shape[1])
+    n_components = min(n_components, combined.shape[0])
     pca = PCA(n_components=n_components)
     combined_proj = pca.fit_transform(combined)
     centroid = combined_proj.mean(axis=0)
 
-    member_proj = pca.transform(member_feats)
-    nonmember_proj = pca.transform(nonmember_feats)
+    n_member = len(member_feats)
+    member_proj = combined_proj[:n_member]
+    nonmember_proj = combined_proj[n_member:]
 
     member_order = [valid_member[i] for i in np.argsort(np.linalg.norm(member_proj - centroid, axis=1))]
     nonmember_order = [valid_nonmember[i] for i in np.argsort(np.linalg.norm(nonmember_proj - centroid, axis=1))]
