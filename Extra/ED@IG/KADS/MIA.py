@@ -22,15 +22,11 @@ warnings.filterwarnings("ignore", category=DeprecationWarning)
 warnings.filterwarnings("ignore", category=FutureWarning)
 
 # ── Configuration ─────────────────────────────────────────────────────────────
-# Configuration : 설정값
 # REAL_PATH, FAKE_PATH 수정 필요
 REAL_PATH = r"D:\kagglehub\datasets\xhlulu\140k-real-and-fake-faces\versions\2\real_vs_fake\real-vs-fake\train\real"
 FAKE_PATH = r"D:\kagglehub\datasets\xhlulu\140k-real-and-fake-faces\versions\2\real_vs_fake\real-vs-fake\train\fake"
 
-MEMBER_RATIO = 0.5  # member/non-member 비율
-
-# [수정 위치 1] 기존 SUBSET_RATIOS 대신 실제 n 기준 실험으로 변경
-# 같은 data seed 안에서는 nested subset 사용: n=250 ⊂ n=750 ⊂ n=1250 ⊂ n=2500
+MEMBER_RATIO = 0.5
 SUBSET_SIZES = [250, 750, 1250, 2500]
 
 BATCH_SIZE = 8
@@ -39,24 +35,18 @@ N_AUG = 5
 NUM_WORKERS = 0
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 SEED = 42
-EPOCHS = 20  # 최대 epoch 횟수 (추후 early stopping 가능)
+EPOCHS = 20
 
-# [수정 위치 2] data split seed와 model run seed를 분리
-# DATA_SEEDS: member_pool/nonmember_pool split 및 nested subset 자체가 바뀌는 상위 반복
-# NUM_MODEL_RUNS: 같은 data seed/subset에서 모델 초기화, train/val split, batch 순서만 바뀌는 반복
 DATA_SEEDS = [1, 2, 3]
 NUM_MODEL_RUNS = 3
 
-# [수정 위치 3] train/validation split과 MIA attack validation/test split 비율 명시
 TRAIN_VAL_RATIO = 0.9
 ATTACK_VAL_RATIO = 0.5
 
-# [수정 위치 4] checkpoint 저장 폴더 분리
 CHECKPOINT_DIR = Path("checkpoints_strict_nested_xgb_report_v1")
 USE_SAVED_MODELS = False
 
 # ── Reproducibility ───────────────────────────────────────────────────────────
-# Reproducibility : random seed 고정
 def set_global_seed(seed):
     """random, numpy, torch seed를 한 번에 고정."""
     random.seed(seed)
@@ -78,7 +68,6 @@ def _mean(results, key):
     return float(np.mean(vals)) if len(vals) else None
 
 # ── Transform ─────────────────────────────────────────────────────────────────
-# Transform: 이미지 size 전처리
 transform = transforms.Compose([
     transforms.Resize((224, 224)),
     transforms.ToTensor(),
@@ -94,7 +83,6 @@ aug_transform = transforms.Compose([
 ])
 
 # ── Split ─────────────────────────────────────────────────────────────────────
-# Split: real 중 member/non-member 분할
 def split_ffhq(files, member_ratio=0.5, seed=42):
     """FFHQ 전체를 무작위로 섞어 member_pool과 nonmember_pool(holdout)로 분리."""
     rng = random.Random(seed)
@@ -142,7 +130,6 @@ def build_pca_order(member_files, nonmember_files, n_components=50):
 
     return member_order, nonmember_order
 
-# [수정 위치 5] nested subset 생성을 위해 data seed별 고정 순서를 만든다.
 def make_nested_orders(real_files, fake_files, data_seed):
     """
     data_seed로 member_pool/nonmember_pool을 나누고,
@@ -161,7 +148,6 @@ def make_nested_orders(real_files, fake_files, data_seed):
 
     return member_order, nonmember_order, fake_order
 
-# [수정 위치 6] train/validation split을 file list 단계에서 수행해 member 정의를 엄격히 관리
 def split_files_train_val(files, train_ratio, seed):
     rng = random.Random(seed)
     files = files[:]
@@ -183,7 +169,6 @@ def split_files_train_val_nested(files, train_ratio):
     n_train = max(1, min(n_train, len(files) - 1))
     return files[:n_train], files[n_train:]
 
-# [수정 위치 7] threshold 선택용 attack validation과 최종 평가용 attack test 분리
 def split_attack_files(member_train_files, nonmember_files, attack_val_ratio, seed):
     """
     MIA member는 실제 train에 들어간 real만 사용한다.
@@ -208,7 +193,6 @@ def split_attack_files(member_train_files, nonmember_files, attack_val_ratio, se
     }
 
 # ── Dataset ───────────────────────────────────────────────────────────────────
-# Dataset: 이미지 전처리(Data Cleaning, 기타)
 class FaceDataset(Dataset):
     def __init__(self, files, label, transform=None):
         self.label = label
@@ -235,12 +219,8 @@ class FaceDataset(Dataset):
         return img, self.label
 
 # ── Model ─────────────────────────────────────────────────────────────────────
-# Model: ResNet34 불러오기
 def build_model():
-    try:
-        model = models.resnet34(weights=models.ResNet34_Weights.IMAGENET1K_V1)
-    except AttributeError:
-        model = models.resnet34(pretrained=True)
+    model = models.resnet34(weights=models.ResNet34_Weights.IMAGENET1K_V1)
 
     model.fc = nn.Linear(model.fc.in_features, 2)
 
@@ -254,16 +234,8 @@ def build_model():
     return model.to(DEVICE)
 
 # ── Training ──────────────────────────────────────────────────────────────────
-# Training: ResNet34 학습 (real/fake 분류기 학습)
-"""
-Loss: CrossEntropy
-Optimizer: Adam
-Learning Rate: CosineAnnealingLR
-
-Early Stopping -> Validation Loss 기준 판단(학습 중단)
-Best Checkpoint 저장 -> Validation Loss 최저점 저장 후 복원
-"""
 def train_model(model, train_loader, epochs, val_loader, lr=1e-4):
+    """CrossEntropy / Adam / CosineAnnealingLR; early stopping on val_loss (patience=5)."""
     criterion = nn.CrossEntropyLoss()
     optimizer = Adam(model.parameters(), lr=lr, weight_decay=1e-5)
     scheduler = CosineAnnealingLR(optimizer, T_max=epochs)
@@ -330,7 +302,6 @@ def train_model(model, train_loader, epochs, val_loader, lr=1e-4):
     return best_val_loss, best_train_loss
 
 # ── Per-image Signals ─────────────────────────────────────────────────────────
-# Per-image Signals: loss, confidence, entropy 신호 계산(수치화)
 def compute_signals(model, dataset, aug_seed=0):
     criterion = nn.CrossEntropyLoss(reduction="none")
     model.eval()
@@ -384,7 +355,6 @@ def compute_signals(model, dataset, aug_seed=0):
 
 
 # ── MIA Evaluation ────────────────────────────────────────────────────────────
-# MIA Evaluation: real[member] 와 real[non-member] 구분
 def _safe_auc(labels, scores):
     if len(np.unique(labels)) < 2:
         return np.nan
@@ -404,10 +374,7 @@ def standardized_gap(member_scores, nonmember_scores):
 
 
 def choose_threshold_on_attack_val(member_signals, nonmember_signals):
-    """
-    [수정 위치 8] threshold 기반 precision/recall의 낙관적 bias를 줄이기 위해
-    attack validation set에서만 threshold를 선택한다.
-    """
+    """attack validation set에서 threshold를 선택해 precision/recall의 낙관적 bias를 줄인다."""
     labels = np.concatenate([
         np.ones(len(member_signals["losses"])),
         np.zeros(len(nonmember_signals["losses"])),
@@ -434,13 +401,6 @@ def evaluate_mia(member_signals, nonmember_signals, threshold):
     loss_scores_m = -member_signals["losses"]
     loss_scores_nm = -nonmember_signals["losses"]
 
-    # 평가 지표 계산
-    """
-    AUC loss/confidence/entropy : 이중 어떤 signal이 더 구분하기 좋은가
-    TPR@1%FPR : 오탐률 1% 이하에서 member을 얼마나 잘 잡는지
-    precision/recall (threshold 기반 보조 지표)
-    """
-
     auc_loss   = _run_auc(loss_scores_m, loss_scores_nm)
     auc_conf   = _run_auc(member_signals["confidence"], nonmember_signals["confidence"])
     auc_entr   = _run_auc(-member_signals["entropy"], -nonmember_signals["entropy"])
@@ -454,7 +414,6 @@ def evaluate_mia(member_signals, nonmember_signals, threshold):
     valid_idx = np.where(fpr <= 0.01)[0]
     tpr_at_1fpr = float(tpr[valid_idx[-1]]) if len(valid_idx) > 0 else 0.0
 
-    # [수정 위치 9] threshold는 attack validation에서 선택하고, 여기서는 attack test에만 적용
     preds = (loss_scores >= threshold).astype(int)
     precision = precision_score(labels, preds, zero_division=0)
     recall = recall_score(labels, preds, zero_division=0)
@@ -814,7 +773,6 @@ def run_experiment(data_seed, subset_size, member_order, nonmember_order, fake_o
     return _aggregate_runs(run_results, data_seed, n)
 
 # ── Aggregation ───────────────────────────────────────────────────────────────
-# Results aggregation: model run 평균과 data seed 평균을 분리
 def summarize_across_data_seeds(all_results):
     summary = {}
     for n in SUBSET_SIZES:
@@ -885,8 +843,6 @@ def summarize_across_data_seeds(all_results):
     return summary
 
 # ── Visualization ─────────────────────────────────────────────────────────────
-# Plot_loss_distribution: member/non-member real loss 분포
-# => 두 분포가 잘 분리되면, loss 기반 MIA 가능성 있음
 def plot_loss_distributions(summary):
     n_plots = len(summary)
     fig, axes = plt.subplots(2, n_plots, figsize=(4 * n_plots, 6), sharey=False)
