@@ -144,21 +144,17 @@ def build_pca_order(member_files, nonmember_files, n_components=50):
 # [수정 위치 5] nested subset 생성을 위해 data seed별 고정 순서를 만든다.
 def make_nested_orders(real_files, fake_files, data_seed):
     """
-    data_seed 1개에 대해, member_pool/nonmember_pool을 새로 만들고
-    같은 data_seed 안에서는, 앞쪽 n개를 잘라 nested subset을 보장한다.
+    data_seed로 member_pool/nonmember_pool을 나누고,
+    각 pool을 PCA 대표성 순으로 정렬한다.
+    같은 data_seed면 n과 무관하게 앞쪽 n개가 항상 동일하다.
     """
     member_pool, nonmember_pool = split_ffhq(real_files, member_ratio=MEMBER_RATIO, seed=data_seed)
 
-    rng_member = random.Random(data_seed + 101)
-    rng_nonmember = random.Random(data_seed + 202)
+    print(f"  Building PCA order for data_seed={data_seed}...")
+    member_order, nonmember_order = build_pca_order(member_pool, nonmember_pool)
+
     rng_fake = random.Random(data_seed + 303)
-
-    member_order = member_pool[:]
-    nonmember_order = nonmember_pool[:]
     fake_order = fake_files[:]
-
-    rng_member.shuffle(member_order)
-    rng_nonmember.shuffle(nonmember_order)
     rng_fake.shuffle(fake_order)
 
     return member_order, nonmember_order, fake_order
