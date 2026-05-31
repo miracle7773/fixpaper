@@ -401,12 +401,12 @@ def evaluate_mia(member_signals, nonmember_signals, threshold):
     loss_scores_m = -member_signals["losses"]
     loss_scores_nm = -nonmember_signals["losses"]
 
-    auc_loss   = _run_auc(loss_scores_m, loss_scores_nm)
-    auc_conf   = _run_auc(member_signals["confidence"], nonmember_signals["confidence"])
-    auc_entr   = _run_auc(-member_signals["entropy"], -nonmember_signals["entropy"])
-    auc_margin   = _run_auc(member_signals["margin"], nonmember_signals["margin"])
+    auc_loss = _run_auc(loss_scores_m, loss_scores_nm)
+    auc_conf = _run_auc(member_signals["confidence"], nonmember_signals["confidence"])
+    auc_entr = _run_auc(-member_signals["entropy"], -nonmember_signals["entropy"])
+    auc_margin = _run_auc(member_signals["margin"], nonmember_signals["margin"])
     auc_aug_mean = _run_auc(-member_signals["aug_loss_mean"], -nonmember_signals["aug_loss_mean"])
-    auc_aug_std  = _run_auc(-member_signals["aug_loss_std"],  -nonmember_signals["aug_loss_std"])
+    auc_aug_std = _run_auc(-member_signals["aug_loss_std"], -nonmember_signals["aug_loss_std"])
 
     loss_scores = np.concatenate([loss_scores_m, loss_scores_nm])
     fpr, tpr, _ = roc_curve(labels, loss_scores)
